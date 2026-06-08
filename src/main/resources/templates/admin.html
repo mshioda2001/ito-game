@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ito - 進行役管理画面</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
+      background: #f8f8f6;
+      color: #1a1a1a;
+      min-height: 100vh;
+      padding: 2rem 1.5rem;
+    }
+
+    .header { display: flex; align-items: baseline; gap: 0.75rem; margin-bottom: 0.4rem; }
+    h1 { font-size: 2.2rem; font-weight: 800; letter-spacing: 0.08em; }
+    .badge {
+      background: #f0f0f0;
+      border-radius: 999px;
+      padding: 0.18rem 0.7rem;
+      font-size: 0.72rem;
+      color: #666;
+      font-weight: 500;
+    }
+    .badge.room { background: #fff0f0; color: #e03050; }
+    .tagline { font-size: 0.82rem; color: #888; margin-bottom: 1.25rem; }
+
+    /* Room tabs */
+    .room-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 1.5rem; }
+    .room-tab {
+      padding: 0.3rem 0.85rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-decoration: none;
+      border: 1px solid #e0e0dc;
+      color: #888;
+      background: #fff;
+      transition: all 0.12s;
+      font-family: inherit;
+    }
+    .room-tab:hover { border-color: #aaa; color: #333; }
+    .room-tab.active { background: #1a1a1a; border-color: #1a1a1a; color: #fff; }
+    .room-tab.back { color: #aaa; }
+
+    /* Link card */
+    .link-card {
+      background: #fff;
+      border: 1px solid #e4e4e0;
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .link-card .lc-label { font-size: 0.75rem; color: #aaa; margin-bottom: 0.2rem; }
+    .link-card .lc-url { font-size: 0.82rem; color: #e03050; word-break: break-all; }
+    .copy-btn {
+      background: #f5f5f3;
+      border: 1px solid #e0e0dc;
+      border-radius: 7px;
+      padding: 0.4rem 0.8rem;
+      color: #555;
+      font-size: 0.76rem;
+      cursor: pointer;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+    .copy-btn:hover { background: #ebebea; }
+
+    /* Grid */
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+    @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+
+    .card {
+      background: #fff;
+      border: 1px solid #e4e4e0;
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+    .card-title { font-size: 0.72rem; color: #aaa; letter-spacing: 0.08em; margin-bottom: 1rem; }
+
+    .stat { text-align: center; }
+    .stat .num { font-size: 2.8rem; font-weight: 800; color: #1a1a1a; line-height: 1; }
+    .stat .label { font-size: 0.75rem; color: #aaa; margin-top: 0.3rem; }
+
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      padding: 0.28rem 0.85rem;
+      border-radius: 999px;
+      font-size: 0.8rem; font-weight: 600;
+      margin-bottom: 1.25rem;
+    }
+    .status-badge.active { background: #f0fdf4; border: 1px solid #86efac; color: #16a34a; }
+    .status-badge.inactive { background: #f5f5f3; border: 1px solid #e0e0dc; color: #888; }
+    .dot { width: 6px; height: 6px; border-radius: 50%; }
+    .dot.active { background: #22c55e; }
+    .dot.inactive { background: #ccc; }
+
+    .topic-current { font-size: 1.3rem; font-weight: 700; margin-bottom: 1.5rem; }
+    .topic-current span { font-size: 0.75rem; color: #aaa; font-weight: 400; display: block; margin-bottom: 0.2rem; }
+
+    label { display: block; font-size: 0.75rem; color: #888; margin-bottom: 0.35rem; }
+    input[type="text"] {
+      width: 100%;
+      background: #f8f8f6;
+      border: 1px solid #e0e0dc;
+      border-radius: 8px;
+      padding: 0.6rem 0.85rem;
+      font-size: 0.9rem;
+      color: #1a1a1a;
+      outline: none;
+      transition: border-color 0.15s;
+      margin-bottom: 0.75rem;
+      font-family: inherit;
+    }
+    input[type="text"]:focus { border-color: #888; }
+
+    .topics-quick { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 0.75rem; }
+    .topic-chip {
+      background: #f5f5f3;
+      border: 1px solid #e0e0dc;
+      border-radius: 999px;
+      padding: 0.22rem 0.7rem;
+      font-size: 0.76rem;
+      color: #555;
+      cursor: pointer;
+      transition: all 0.12s;
+      font-family: inherit;
+    }
+    .topic-chip:hover { border-color: #aaa; color: #1a1a1a; }
+
+    .btn-row { display: flex; gap: 8px; }
+    .btn {
+      flex: 1;
+      padding: 0.7rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      font-family: inherit;
+    }
+    .btn-start { background: #1a1a1a; color: #fff; }
+    .btn-start:hover { opacity: 0.8; }
+    .btn-end { background: #f5f5f3; border: 1px solid #e0e0dc; color: #555; }
+    .btn-end:hover { background: #ebebea; }
+    .btn-reset { background: #fff0f0; border: 1px solid #fca5a5; color: #e03050; font-size: 0.78rem; padding: 0.5rem 0.8rem; flex: none; }
+    .btn-reset:hover { background: #ffe4e6; }
+
+    .assignment-list { max-height: 320px; overflow-y: auto; }
+    .assignment-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.55rem 0; border-bottom: 1px solid #f0f0ee;
+      font-size: 0.88rem;
+    }
+    .assignment-row:last-child { border-bottom: none; }
+    .assignment-name { color: #333; }
+    .assignment-num { font-size: 1.1rem; font-weight: 700; color: #e03050; min-width: 3ch; text-align: right; }
+    .empty-msg { color: #bbb; font-size: 0.82rem; text-align: center; padding: 1rem 0; }
+  </style>
+</head>
+<body>
+<div class="header">
+  <h1>ito</h1>
+  <span class="badge">進行役</span>
+  <span class="badge room" th:text="${roomName}">ルーム 1</span>
+</div>
+<p class="tagline">管理画面 — ラウンドの開始・終了はここで操作してください</p>
+
+<!-- ルームタブ -->
+<div class="room-tabs">
+  <a href="/admin" class="room-tab back">← 一覧</a>
+  <a th:each="id : ${roomIds}"
+     th:href="@{/admin/{id}(id=${id})}"
+     th:text="'ルーム ' + ${id}"
+     th:classappend="${id == roomId} ? ' active' : ''"
+     class="room-tab">ルーム 1</a>
+</div>
+
+<!-- 参加者リンク -->
+<div class="link-card">
+  <div style="flex:1">
+    <p class="lc-label">参加者に共有するURL</p>
+    <p class="lc-url" id="playerUrl"></p>
+  </div>
+  <button class="copy-btn" onclick="copyUrl()">コピー</button>
+</div>
+
+<div class="grid">
+  <!-- 左：ラウンド管理 -->
+  <div class="card">
+    <p class="card-title">ラウンド管理</p>
+    <div class="status-badge inactive" id="statusBadge">
+      <span class="dot inactive" id="statusDot"></span>
+      <span id="statusText">待機中</span>
+    </div>
+    <div class="topic-current">
+      <span>現在のお題</span>
+      <span id="topicCurrentVal" th:text="${topic}">-</span>
+    </div>
+    <form th:action="@{/admin/{roomId}/start(roomId=${roomId})}" method="post">
+      <label>お題</label>
+      <div class="topics-quick">
+        <button type="button" class="topic-chip" onclick="setTopic('辛さ')">辛さ</button>
+        <button type="button" class="topic-chip" onclick="setTopic('疲れ具合')">疲れ具合</button>
+        <button type="button" class="topic-chip" onclick="setTopic('怖さ')">怖さ</button>
+        <button type="button" class="topic-chip" onclick="setTopic('甘さ')">甘さ</button>
+        <button type="button" class="topic-chip" onclick="setTopic('速さ')">速さ</button>
+        <button type="button" class="topic-chip" onclick="setTopic('眠さ')">眠さ</button>
+        <button type="button" class="topic-chip" onclick="setTopic('強さ')">強さ</button>
+        <button type="button" class="topic-chip" onclick="setTopic('暑さ')">暑さ</button>
+      </div>
+      <input type="text" name="topic" id="topicInput" placeholder="お題を入力 または 上から選択" />
+      <div class="btn-row">
+        <button type="submit" class="btn btn-start">ラウンド開始</button>
+      </div>
+    </form>
+    <div style="margin-top:0.75rem; display:flex; gap:8px;">
+      <form th:action="@{/admin/{roomId}/end(roomId=${roomId})}" method="post" style="flex:1">
+        <button type="submit" class="btn btn-end" style="width:100%">ラウンド終了</button>
+      </form>
+      <form th:action="@{/admin/{roomId}/reset(roomId=${roomId})}" method="post">
+        <button type="submit" class="btn btn-reset">リセット</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 右：統計 -->
+  <div class="card">
+    <p class="card-title">状況</p>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+      <div class="stat">
+        <p class="num" id="assignedCount" th:text="${totalAssigned}">0</p>
+        <p class="label">引いた人数</p>
+      </div>
+      <div class="stat">
+        <p class="num" id="remainingCount" th:text="${remaining}">100</p>
+        <p class="label">残り枚数</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 参加者一覧 -->
+<div class="card">
+  <p class="card-title">参加者一覧</p>
+  <div class="assignment-list" id="assignmentList">
+    <p class="empty-msg" th:if="${totalAssigned == 0}">まだ誰も数字を引いていません</p>
+    <div th:each="entry : ${assignments}" class="assignment-row">
+      <span class="assignment-name" th:text="${entry.key}"></span>
+      <span class="assignment-num" th:text="${entry.value}"></span>
+    </div>
+  </div>
+</div>
+
+<script th:inline="javascript">
+  const ROOM_ID = /*[[${roomId}]]*/ '1';
+
+  const playerUrl = location.protocol + '//' + location.host + '/room/' + ROOM_ID;
+  document.getElementById('playerUrl').textContent = playerUrl;
+
+  function copyUrl() {
+    navigator.clipboard.writeText(playerUrl).then(() => {
+      const btn = event.target;
+      btn.textContent = 'コピー完了！';
+      setTimeout(() => btn.textContent = 'コピー', 1500);
+    });
+  }
+
+  function setTopic(val) { document.getElementById('topicInput').value = val; }
+
+  async function poll() {
+    try {
+      const data = await (await fetch(`/admin/${ROOM_ID}/data`)).json();
+
+      const badge = document.getElementById('statusBadge');
+      const dot   = document.getElementById('statusDot');
+      const text  = document.getElementById('statusText');
+      if (data.roundActive) {
+        badge.className = 'status-badge active';
+        dot.className   = 'dot active';
+        text.textContent = 'ラウンド進行中';
+      } else {
+        badge.className = 'status-badge inactive';
+        dot.className   = 'dot inactive';
+        text.textContent = '待機中';
+      }
+      document.getElementById('topicCurrentVal').textContent = data.topic;
+      document.getElementById('assignedCount').textContent   = data.totalAssigned;
+      document.getElementById('remainingCount').textContent  = data.remaining;
+
+      const list = document.getElementById('assignmentList');
+      const entries = Object.entries(data.assignments);
+      list.innerHTML = entries.length === 0
+        ? '<p class="empty-msg">まだ誰も数字を引いていません</p>'
+        : entries.map(([n,v]) => `
+            <div class="assignment-row">
+              <span class="assignment-name">${n}</span>
+              <span class="assignment-num">${v}</span>
+            </div>`).join('');
+    } catch {}
+  }
+
+  poll();
+  setInterval(poll, 2000);
+</script>
+</body>
+</html>

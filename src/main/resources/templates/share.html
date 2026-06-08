@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ito - 共有画面</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
+      background: #f2f2ef;
+      color: #1a1a1a;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ---- Toolbar ---- */
+    .toolbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 52px;
+      background: #fff;
+      border-bottom: 1px solid #e4e4e0;
+      display: flex;
+      align-items: center;
+      padding: 0 1.25rem;
+      gap: 0.75rem;
+      z-index: 1000;
+      user-select: none;
+    }
+    .toolbar h1 { font-size: 1.3rem; font-weight: 800; letter-spacing: 0.08em; }
+    .room-badge {
+      background: #f0f0f0;
+      border-radius: 999px;
+      padding: 0.15rem 0.65rem;
+      font-size: 0.72rem;
+      color: #555;
+      font-weight: 500;
+    }
+    .topic-pill {
+      background: #fff0f0;
+      border: 1px solid #fca5a5;
+      border-radius: 999px;
+      padding: 0.15rem 0.7rem;
+      font-size: 0.75rem;
+      color: #e03050;
+      font-weight: 500;
+    }
+    .spacer { flex: 1; }
+    .status-wrap { display: flex; align-items: center; gap: 0.4rem; }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #ccc; transition: background 0.3s; }
+    .status-dot.active { background: #22c55e; }
+    .status-label { font-size: 0.75rem; color: #888; }
+
+    .toolbar-btn {
+      background: #f5f5f3;
+      border: 1px solid #e0e0dc;
+      border-radius: 7px;
+      padding: 0.38rem 0.85rem;
+      font-size: 0.78rem;
+      color: #333;
+      cursor: pointer;
+      white-space: nowrap;
+      font-family: inherit;
+      transition: background 0.12s;
+    }
+    .toolbar-btn:hover { background: #ebebea; }
+    .toolbar-btn.danger { color: #e03050; border-color: #fca5a5; }
+    .toolbar-btn.danger:hover { background: #fff0f0; }
+    .back-link {
+      font-size: 0.78rem; color: #888; text-decoration: none;
+      padding: 0.3rem 0.5rem; border-radius: 6px;
+    }
+    .back-link:hover { color: #333; background: #f5f5f3; }
+
+    /* ---- Zoom controls ---- */
+    .zoom-controls {
+      position: fixed;
+      bottom: 1.25rem;
+      right: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      z-index: 900;
+    }
+    .zoom-btn {
+      width: 34px; height: 34px;
+      background: #fff;
+      border: 1px solid #e4e4e0;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      color: #555;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      font-family: inherit;
+      transition: background 0.12s;
+    }
+    .zoom-btn:hover { background: #f5f5f3; }
+    .zoom-label {
+      background: #fff;
+      border: 1px solid #e4e4e0;
+      border-radius: 8px;
+      padding: 0.25rem 0;
+      font-size: 0.72rem;
+      color: #888;
+      text-align: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      cursor: pointer;
+      user-select: none;
+    }
+    .zoom-label:hover { background: #f5f5f3; }
+
+    /* ---- Board (viewport) ---- */
+    #board {
+      position: fixed;
+      top: 52px; left: 0; right: 0; bottom: 0;
+      overflow: hidden;
+      cursor: default;
+    }
+    #board.panning { cursor: grabbing; }
+
+    /* ---- Canvas (infinite, transformed) ---- */
+    #canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 0; height: 0;    /* size doesn't matter — transform-origin handles it */
+      transform-origin: 0 0;
+    }
+
+    /* ---- Grid dots background ---- */
+    #board::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(circle, #ccc 1px, transparent 1px);
+      background-size: 28px 28px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ---- Card wrap ---- */
+    .card-wrap {
+      position: absolute;
+      width: 180px;
+      cursor: grab;
+      user-select: none;
+      z-index: 10;
+      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.11));
+      transition: filter 0.15s;
+    }
+    .card-wrap:hover { filter: drop-shadow(0 4px 16px rgba(0,0,0,0.18)); }
+    .card-wrap.dragging {
+      cursor: grabbing;
+      z-index: 500;
+      filter: drop-shadow(0 8px 28px rgba(0,0,0,0.22));
+    }
+
+    /* ---- Flip ---- */
+    .card-inner {
+      width: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.45s ease;
+    }
+    .card-wrap.flipped .card-inner { transform: rotateY(180deg); }
+
+    .card-face {
+      width: 100%;
+      border-radius: 4px;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+
+    /* Front — participant postit */
+    .card-front {
+      background: #fef9c3;
+      padding: 0.85rem 0.85rem 0.7rem;
+      min-height: 150px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      border-top: 3px solid #fde047;
+    }
+    .card-name {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #1a1a1a;
+      line-height: 1.3;
+      word-break: break-all;
+    }
+    .card-memo {
+      flex: 1;
+      width: 100%;
+      background: rgba(0,0,0,0.04);
+      border: none;
+      border-radius: 4px;
+      padding: 0.4rem 0.5rem;
+      font-size: 0.78rem;
+      color: #444;
+      font-family: inherit;
+      resize: none;
+      min-height: 52px;
+      outline: none;
+      transition: background 0.12s;
+      cursor: text;
+      line-height: 1.5;
+    }
+    .card-memo::placeholder { color: #bbb; }
+    .card-memo:focus { background: rgba(0,0,0,0.08); }
+
+    .reveal-btn {
+      align-self: flex-end;
+      background: rgba(0,0,0,0.07);
+      border: none;
+      border-radius: 4px;
+      padding: 0.28rem 0.6rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #444;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.12s;
+    }
+    .reveal-btn:hover { background: rgba(0,0,0,0.14); }
+
+    /* Front — text postit (green) */
+    .card-front.text-type {
+      background: #dcfce7;
+      border-top-color: #86efac;
+      min-height: 100px;
+    }
+    .text-content {
+      flex: 1;
+      font-size: 0.82rem;
+      color: #1a1a1a;
+      line-height: 1.55;
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+    .edit-btn {
+      align-self: flex-end;
+      background: rgba(0,0,0,0.06);
+      border: none;
+      border-radius: 4px;
+      padding: 0.25rem 0.55rem;
+      font-size: 0.68rem;
+      color: #444;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .edit-btn:hover { background: rgba(0,0,0,0.12); }
+
+    /* Back — number reveal */
+    .card-back {
+      background: #e03050;
+      color: #fff;
+      padding: 1rem;
+      min-height: 150px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transform: rotateY(180deg);
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      border-radius: 4px;
+    }
+    .big-num { font-size: 4rem; font-weight: 800; line-height: 1; }
+    .back-name { font-size: 0.7rem; opacity: 0.75; margin-top: 0.35rem; }
+    .hide-btn {
+      margin-top: 0.65rem;
+      background: rgba(255,255,255,0.2);
+      border: none; border-radius: 4px;
+      padding: 0.28rem 0.6rem; font-size: 0.7rem;
+      color: #fff; cursor: pointer; font-family: inherit;
+    }
+    .hide-btn:hover { background: rgba(255,255,255,0.32); }
+
+    /* Delete button */
+    .card-delete {
+      position: absolute;
+      top: -7px; right: -7px;
+      width: 18px; height: 18px;
+      background: #555;
+      border: 2px solid #f2f2ef;
+      border-radius: 50%;
+      color: #fff;
+      font-size: 0.6rem;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      font-family: inherit;
+    }
+    .card-wrap:hover .card-delete { display: flex; }
+
+    /* ---- Empty state ---- */
+    #emptyState {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      pointer-events: none;
+      z-index: 1;
+    }
+    #emptyState .icon { font-size: 2.5rem; margin-bottom: 0.75rem; opacity: 0.2; }
+    #emptyState p { color: #bbb; font-size: 0.88rem; line-height: 1.7; }
+
+    /* ---- Modal ---- */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.2);
+      z-index: 2000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: #fff;
+      border: 1px solid #e4e4e0;
+      border-radius: 12px;
+      padding: 1.5rem;
+      width: 100%; max-width: 340px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+    }
+    .modal h2 { font-size: 0.95rem; font-weight: 600; color: #333; margin-bottom: 0.85rem; }
+    .modal textarea {
+      width: 100%;
+      background: #f8f8f6;
+      border: 1px solid #e0e0dc;
+      border-radius: 7px;
+      padding: 0.65rem 0.75rem;
+      font-size: 0.88rem;
+      color: #1a1a1a;
+      outline: none;
+      resize: vertical;
+      min-height: 80px;
+      font-family: inherit;
+      margin-bottom: 1rem;
+      transition: border-color 0.15s;
+    }
+    .modal textarea:focus { border-color: #aaa; }
+    .modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+    .modal-btn {
+      padding: 0.45rem 1rem;
+      border-radius: 7px;
+      border: 1px solid #e0e0dc;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .modal-btn.cancel { background: #f5f5f3; color: #666; }
+    .modal-btn.ok { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+    .modal-btn.ok:hover { background: #333; }
+  </style>
+</head>
+<body>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <a href="/share" class="back-link">← 戻る</a>
+  <h1>ito</h1>
+  <span class="room-badge" th:text="${roomName}" id="roomBadge">ルーム 1</span>
+  <span class="topic-pill" id="topicPill">お題：-</span>
+  <span class="spacer"></span>
+  <div class="status-wrap">
+    <span class="status-dot" id="statusDot"></span>
+    <span class="status-label" id="statusLabel">待機中</span>
+  </div>
+  <button class="toolbar-btn" onclick="openTextModal()">＋ メモ追加</button>
+  <button class="toolbar-btn danger" onclick="resetBoard()">リセット</button>
+</div>
+
+<!-- Board (viewport) -->
+<div id="board">
+  <!-- Canvas (infinite) -->
+  <div id="canvas"></div>
+</div>
+
+<!-- Zoom controls -->
+<div class="zoom-controls">
+  <button class="zoom-btn" onclick="zoomStep(1.2)" title="拡大">＋</button>
+  <div class="zoom-label" id="zoomLabel" onclick="resetView()" title="ビューをリセット">100%</div>
+  <button class="zoom-btn" onclick="zoomStep(1/1.2)" title="縮小">－</button>
+</div>
+
+<!-- Empty state -->
+<div id="emptyState">
+  <div class="icon">🃏</div>
+  <p>参加者がまだ数字を引いていません。<br>引いた参加者がここに表示されます。</p>
+</div>
+
+<!-- Text modal -->
+<div class="modal-overlay" id="textModal">
+  <div class="modal">
+    <h2>メモを入力</h2>
+    <textarea id="textInput" placeholder="テキストを入力… (Enterで追加)" maxlength="200"></textarea>
+    <div class="modal-btns">
+      <button class="modal-btn cancel" onclick="closeTextModal()">キャンセル</button>
+      <button class="modal-btn ok" onclick="confirmText()">追加</button>
+    </div>
+  </div>
+</div>
+
+<script th:inline="javascript">
+  const ROOM_ID = /*[[${roomId}]]*/ '1';
+
+  const board  = document.getElementById('board');
+  const canvas = document.getElementById('canvas');
+  const emptyState = document.getElementById('emptyState');
+
+  // =====================
+  //  Camera state
+  // =====================
+  const ZOOM_MIN = 0.2, ZOOM_MAX = 3;
+  let panX = 60, panY = 60, zoom = 1;
+
+  function applyTransform() {
+    canvas.style.transform = `translate(${panX}px,${panY}px) scale(${zoom})`;
+    document.getElementById('zoomLabel').textContent = Math.round(zoom * 100) + '%';
+  }
+
+  // screen → canvas coords
+  function toCanvas(sx, sy) {
+    const r = board.getBoundingClientRect();
+    return { x: (sx - r.left - panX) / zoom, y: (sy - r.top - panY) / zoom };
+  }
+
+  // ---- Pan (drag on board background) ----
+  let isPanning = false, panStart = {};
+  board.addEventListener('mousedown', e => {
+    if (e.target !== board && e.target !== canvas) return;
+    isPanning = true;
+    panStart = { x: e.clientX - panX, y: e.clientY - panY };
+    board.classList.add('panning');
+  });
+  document.addEventListener('mousemove', e => {
+    if (!isPanning) return;
+    panX = e.clientX - panStart.x;
+    panY = e.clientY - panStart.y;
+    applyTransform();
+  });
+  document.addEventListener('mouseup', () => { isPanning = false; board.classList.remove('panning'); });
+
+  // touch pan
+  let touchPan = null;
+  board.addEventListener('touchstart', e => {
+    if (e.target !== board && e.target !== canvas) return;
+    const t = e.touches[0];
+    touchPan = { x: t.clientX - panX, y: t.clientY - panY };
+  }, { passive: true });
+  board.addEventListener('touchmove', e => {
+    if (!touchPan) return;
+    const t = e.touches[0];
+    panX = t.clientX - touchPan.x;
+    panY = t.clientY - touchPan.y;
+    applyTransform();
+  }, { passive: true });
+  board.addEventListener('touchend', () => { touchPan = null; });
+
+  // ---- Zoom (wheel) ----
+  board.addEventListener('wheel', e => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+    applyZoom(factor, e.clientX, e.clientY);
+  }, { passive: false });
+
+  function applyZoom(factor, cx, cy) {
+    const r = board.getBoundingClientRect();
+    const newZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom * factor));
+    const ratio = newZoom / zoom;
+    panX = cx - r.left - (cx - r.left - panX) * ratio;
+    panY = cy - r.top  - (cy - r.top  - panY) * ratio;
+    zoom = newZoom;
+    applyTransform();
+  }
+
+  function zoomStep(factor) {
+    const r = board.getBoundingClientRect();
+    applyZoom(factor, r.left + r.width / 2, r.top + r.height / 2);
+  }
+
+  function resetView() {
+    panX = 60; panY = 60; zoom = 1;
+    applyTransform();
+  }
+
+  applyTransform();
+
+  // =====================
+  //  Cards
+  // =====================
+  let knownNames = new Set(), cardEls = {}, textCardEls = {}, nextTextId = 0, zTop = 10;
+  const SKIP_TAGS = ['BUTTON', 'TEXTAREA', 'INPUT'];
+
+  function makeDraggable(wrap) {
+    let sx, sy, ox, oy, moved;
+    const onMove = e => {
+      const cx = e.touches ? e.touches[0].clientX : e.clientX;
+      const cy = e.touches ? e.touches[0].clientY : e.clientY;
+      moved = true;
+      // move in canvas space: screen delta / zoom
+      wrap.style.left = (ox + (cx - sx) / zoom) + 'px';
+      wrap.style.top  = (oy + (cy - sy) / zoom) + 'px';
+    };
+    const onUp = () => {
+      wrap.classList.remove('dragging');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
+    };
+    const onDown = e => {
+      if (SKIP_TAGS.includes(e.target.tagName)) return;
+      moved = false;
+      wrap.classList.add('dragging');
+      wrap.style.zIndex = ++zTop;
+      sx = e.touches ? e.touches[0].clientX : e.clientX;
+      sy = e.touches ? e.touches[0].clientY : e.clientY;
+      ox = parseFloat(wrap.style.left) || 0;
+      oy = parseFloat(wrap.style.top)  || 0;
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      document.addEventListener('touchmove', onMove, { passive: true });
+      document.addEventListener('touchend', onUp);
+    };
+    wrap.addEventListener('mousedown', onDown);
+    wrap.addEventListener('touchstart', onDown, { passive: true });
+  }
+
+  // Place new card in the visible center area of the board
+  function randCanvasPos() {
+    const r = board.getBoundingClientRect();
+    const cx = r.width  / 2 + (Math.random() - 0.5) * r.width  * 0.5;
+    const cy = r.height / 2 + (Math.random() - 0.5) * r.height * 0.4;
+    const p  = toCanvas(r.left + cx, r.top + cy);
+    return { x: p.x + (Math.random() - 0.5) * 60, y: p.y + (Math.random() - 0.5) * 60 };
+  }
+
+  function createParticipantCard(name, number) {
+    const wrap = document.createElement('div');
+    wrap.className = 'card-wrap';
+    const p = randCanvasPos();
+    wrap.style.left = p.x + 'px';
+    wrap.style.top  = p.y + 'px';
+    wrap.innerHTML = `
+      <div class="card-inner">
+        <div class="card-face card-front">
+          <div class="card-name">${esc(name)}</div>
+          <textarea class="card-memo" placeholder="メモを入力…" rows="3"></textarea>
+          <button class="reveal-btn" onclick="flipCard(this)">数字を表示 ▶</button>
+        </div>
+        <div class="card-face card-back">
+          <div class="big-num">${number}</div>
+          <div class="back-name">${esc(name)}</div>
+          <button class="hide-btn" onclick="flipCard(this)">隠す</button>
+        </div>
+      </div>
+      <button class="card-delete" onclick="removeCard(this)">×</button>`;
+    makeDraggable(wrap);
+    canvas.appendChild(wrap);
+    return wrap;
+  }
+
+  function createTextCard(id, text) {
+    const wrap = document.createElement('div');
+    wrap.className = 'card-wrap';
+    wrap.dataset.textId = id;
+    const p = randCanvasPos();
+    wrap.style.left = p.x + 'px';
+    wrap.style.top  = p.y + 'px';
+    wrap.innerHTML = `
+      <div class="card-inner">
+        <div class="card-face card-front text-type">
+          <div class="text-content">${esc(text)}</div>
+          <button class="edit-btn" onclick="editTextCard(this)">✏ 編集</button>
+        </div>
+      </div>
+      <button class="card-delete" onclick="removeCard(this)">×</button>`;
+    makeDraggable(wrap);
+    canvas.appendChild(wrap);
+    return wrap;
+  }
+
+  function flipCard(btn) { btn.closest('.card-wrap').classList.toggle('flipped'); }
+
+  function removeCard(btn) {
+    const wrap = btn.closest('.card-wrap');
+    const tid  = wrap.dataset.textId;
+    if (tid !== undefined) {
+      delete textCardEls[parseInt(tid)];
+    } else {
+      const name = wrap.querySelector('.card-name')?.textContent;
+      if (name) { knownNames.delete(name); delete cardEls[name]; }
+    }
+    wrap.remove();
+    updateEmptyState();
+  }
+
+  // =====================
+  //  Polling
+  // =====================
+  async function poll() {
+    try {
+      const data = await (await fetch(`/share/${ROOM_ID}/data`)).json();
+      document.getElementById('topicPill').textContent = 'お題：' + data.topic;
+      const dot = document.getElementById('statusDot'), lbl = document.getElementById('statusLabel');
+      if (data.roundActive) { dot.className = 'status-dot active'; lbl.textContent = 'ラウンド進行中'; }
+      else                  { dot.className = 'status-dot';        lbl.textContent = '待機中'; }
+      for (const [name, number] of Object.entries(data.assignments)) {
+        if (!knownNames.has(name)) {
+          knownNames.add(name);
+          cardEls[name] = createParticipantCard(name, number);
+          updateEmptyState();
+        }
+      }
+    } catch {}
+  }
+
+  function updateEmptyState() {
+    emptyState.style.display = (knownNames.size + Object.keys(textCardEls).length) === 0 ? 'block' : 'none';
+  }
+
+  // =====================
+  //  Text modal
+  // =====================
+  let editingWrap = null;
+
+  function openTextModal() {
+    editingWrap = null;
+    document.getElementById('textInput').value = '';
+    document.getElementById('textModal').classList.add('open');
+    setTimeout(() => document.getElementById('textInput').focus(), 50);
+  }
+  function editTextCard(btn) {
+    editingWrap = btn.closest('.card-wrap');
+    document.getElementById('textInput').value = editingWrap.querySelector('.text-content').textContent;
+    document.getElementById('textModal').classList.add('open');
+    setTimeout(() => document.getElementById('textInput').focus(), 50);
+  }
+  function closeTextModal() { document.getElementById('textModal').classList.remove('open'); editingWrap = null; }
+  function confirmText() {
+    const text = document.getElementById('textInput').value.trim();
+    if (!text) { closeTextModal(); return; }
+    if (editingWrap) {
+      editingWrap.querySelector('.text-content').textContent = text;
+    } else {
+      const id = nextTextId++;
+      textCardEls[id] = createTextCard(id, text);
+      updateEmptyState();
+    }
+    closeTextModal();
+  }
+
+  function resetBoard() {
+    if (!confirm('ボード上の全カードを削除してリセットしますか？')) return;
+    canvas.innerHTML = '';
+    knownNames.clear(); cardEls = {}; textCardEls = {}; nextTextId = 0;
+    updateEmptyState();
+    poll();
+  }
+
+  function esc(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  document.getElementById('textModal').addEventListener('click', e => {
+    if (e.target === document.getElementById('textModal')) closeTextModal();
+  });
+  document.getElementById('textInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); confirmText(); }
+  });
+
+  updateEmptyState();
+  poll();
+  setInterval(poll, 3000);
+</script>
+</body>
+</html>

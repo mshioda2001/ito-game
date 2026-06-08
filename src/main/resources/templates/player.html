@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ito - 数字を引く</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
+      background: #f8f8f6;
+      color: #1a1a1a;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .container { width: 100%; max-width: 400px; }
+
+    .header { display: flex; align-items: baseline; gap: 0.6rem; margin-bottom: 0.25rem; }
+    h1 { font-size: 2.8rem; font-weight: 800; letter-spacing: 0.1em; }
+    .room-badge {
+      background: #f0f0f0;
+      border-radius: 999px;
+      padding: 0.2rem 0.65rem;
+      font-size: 0.72rem;
+      color: #666;
+      font-weight: 500;
+    }
+    .tagline { font-size: 0.85rem; color: #888; margin-bottom: 0.75rem; }
+    .back-link { font-size: 0.8rem; color: #aaa; text-decoration: none; display: inline-block; margin-bottom: 1.5rem; }
+    .back-link:hover { color: #555; }
+
+    .card {
+      background: #fff;
+      border: 1px solid #e4e4e0;
+      border-radius: 14px;
+      padding: 1.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .waiting { text-align: center; padding: 2rem 1rem; }
+    .waiting .icon { font-size: 2rem; margin-bottom: 1rem; opacity: 0.4; }
+    .waiting p { color: #888; font-size: 0.92rem; line-height: 1.7; }
+
+    .topic-display { text-align: center; margin-bottom: 1.5rem; }
+    .topic-display .label { font-size: 0.75rem; color: #aaa; margin-bottom: 0.25rem; letter-spacing: 0.05em; }
+    .topic-display .value { font-size: 1.5rem; font-weight: 700; color: #1a1a1a; }
+
+    label { display: block; font-size: 0.75rem; color: #888; margin-bottom: 0.4rem; letter-spacing: 0.05em; }
+    input[type="text"] {
+      width: 100%;
+      background: #f8f8f6;
+      border: 1px solid #e0e0dc;
+      border-radius: 9px;
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+      color: #1a1a1a;
+      outline: none;
+      transition: border-color 0.2s;
+      margin-bottom: 1rem;
+      font-family: inherit;
+    }
+    input[type="text"]:focus { border-color: #888; }
+
+    .btn {
+      width: 100%;
+      padding: 0.85rem;
+      border: none;
+      border-radius: 9px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      font-family: inherit;
+    }
+    .btn-primary { background: #1a1a1a; color: #fff; }
+    .btn-primary:hover { opacity: 0.8; }
+    .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+
+    .number-result { text-align: center; padding: 1.25rem 0; }
+    .number-result .label { font-size: 0.75rem; color: #aaa; margin-bottom: 0.5rem; letter-spacing: 0.05em; }
+    .number-result .big-num { font-size: 7rem; font-weight: 800; line-height: 1; color: #e03050; }
+    .number-result .topic-tag {
+      display: inline-block;
+      margin-top: 0.75rem;
+      background: #fff0f0;
+      border: 1px solid #fca5a5;
+      border-radius: 999px;
+      padding: 0.25rem 1rem;
+      font-size: 0.82rem;
+      color: #e03050;
+    }
+    .number-result .warn { font-size: 0.75rem; color: #aaa; margin-top: 1rem; }
+
+    .error-msg {
+      background: #fff0f0;
+      border: 1px solid #fca5a5;
+      border-radius: 9px;
+      padding: 0.7rem 1rem;
+      font-size: 0.88rem;
+      color: #e03050;
+      margin-top: 0.75rem;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>ito</h1>
+    <span class="room-badge" th:text="${roomName}">ルーム 1</span>
+  </div>
+  <p class="tagline">数字で話すコミュニケーションゲーム</p>
+  <a href="/" class="back-link">← ルーム選択に戻る</a>
+
+  <div class="card" id="waitingCard" style="display:none">
+    <div class="waiting">
+      <div class="icon">⏳</div>
+      <p>まだラウンドが始まっていません。<br>進行役がラウンドを開始するまでお待ちください。</p>
+    </div>
+  </div>
+
+  <div class="card" id="drawCard" style="display:none">
+    <div class="topic-display">
+      <p class="label">今回のお題</p>
+      <p class="value" id="topicText">-</p>
+    </div>
+    <label for="nameInput">あなたの名前</label>
+    <input type="text" id="nameInput" placeholder="例：山田太郎" maxlength="30" autocomplete="off" />
+    <button class="btn btn-primary" id="drawBtn" onclick="drawNumber()">数字を引く</button>
+    <div class="error-msg" id="errorMsg"></div>
+  </div>
+
+  <div class="card" id="resultCard" style="display:none">
+    <div class="number-result">
+      <p class="label">あなたの数字</p>
+      <p class="big-num" id="resultNum">-</p>
+      <span class="topic-tag" id="resultTopic">-</span>
+      <p class="warn">※ この数字は他の人に見せないでください</p>
+    </div>
+  </div>
+</div>
+
+<script th:inline="javascript">
+  const ROOM_ID = /*[[${roomId}]]*/ '1';
+  let myNumber = null, lastTopic = null;
+
+  function showState(roundActive, topic) {
+    document.getElementById('topicText').textContent = topic;
+    if (myNumber !== null) {
+      show('resultCard'); return;
+    }
+    if (roundActive) show('drawCard'); else show('waitingCard');
+  }
+  function show(id) {
+    ['waitingCard','drawCard','resultCard'].forEach(i =>
+      document.getElementById(i).style.display = i === id ? 'block' : 'none'
+    );
+  }
+
+  async function drawNumber() {
+    const name = document.getElementById('nameInput').value.trim();
+    const err  = document.getElementById('errorMsg');
+    if (!name) { err.textContent = '名前を入力してください'; err.style.display = 'block'; return; }
+    const btn  = document.getElementById('drawBtn');
+    btn.disabled = true; err.style.display = 'none';
+    try {
+      const res  = await fetch(`/room/${ROOM_ID}/draw`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'name=' + encodeURIComponent(name)
+      });
+      const data = await res.json();
+      if (data.success) {
+        myNumber = data.number;
+        document.getElementById('resultNum').textContent   = data.number;
+        document.getElementById('resultTopic').textContent = 'お題：' + data.topic;
+        show('resultCard');
+      } else {
+        err.textContent = data.message; err.style.display = 'block'; btn.disabled = false;
+      }
+    } catch {
+      err.textContent = '通信エラーが発生しました。再度お試しください。';
+      err.style.display = 'block'; btn.disabled = false;
+    }
+  }
+
+  async function poll() {
+    try {
+      const data = await (await fetch(`/room/${ROOM_ID}/status`)).json();
+      if (lastTopic !== null && lastTopic !== data.topic) {
+        myNumber = null;
+        document.getElementById('nameInput').value = '';
+        document.getElementById('errorMsg').style.display = 'none';
+        document.getElementById('drawBtn').disabled = false;
+      }
+      lastTopic = data.topic;
+      showState(data.roundActive, data.topic);
+    } catch {}
+  }
+
+  poll();
+  setInterval(poll, 3000);
+  document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key==='Enter') drawNumber(); });
+</script>
+</body>
+</html>
