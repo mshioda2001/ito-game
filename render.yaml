@@ -1,14 +1,9 @@
 services:
   - type: web
     name: ito-game
-    env: java
-    buildCommand: mvn clean package -DskipTests
-    startCommand: java -jar target/ito-game-1.0.0.jar
-    envVars:
-      - key: JAVA_TOOL_OPTIONS
-        value: -Xmx512m -Xms256m
-      - key: SERVER_PORT
-        value: 8080
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /
 
 # Made with Bob

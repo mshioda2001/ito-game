@@ -1,0 +1,12 @@
+target/
+.git/
+.gitignore
+.DS_Store
+__MACOSX/
+*.md
+.classpath
+.project
+.settings/
+.vscode/
+.idea/
+*.iml
